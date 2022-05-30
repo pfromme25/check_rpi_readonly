@@ -1,0 +1,71 @@
+#!/usr/bin/python3
+# Copyright (C) 2022 Philipp Fromme
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import argparse
+import subprocess
+import sys
+from enum import Enum
+
+class State(Enum):
+    OK = 0
+    WARNING = 1
+    CRITICAL = 2
+    UNKNOWN = 3
+
+def main():
+    parser = argparse.ArgumentParser(description="Check if bootro and overlayfs"
+                                     " are enabled")
+    parser.add_argument("-b", "--boot_crit", help="If boot is rw, set state "
+                        "to critical", action="store_true")
+    parser.add_argument("-o", "--overlay_crit", help="If overlayfs is "
+                        "disabled, set state to critical", action="store_true")
+    args = parser.parse_args()
+
+    # Check whether bootro is in use
+    bootro_command = ["raspi-config", "nonint", "get_bootro_now"]
+    bootro_return = subprocess.check_output(bootro_command).rstrip().decode()
+
+    # Check whether overlayfs is in use
+    overlayfs_command = ["raspi-config", "nonint", "get_overlay_now"]
+    overlayfs_return = subprocess.check_output(overlayfs_command).rstrip().decode()
+
+    if bootro_return == "1" and overlayfs_return == "1":
+        state = State.CRITICAL
+        print(f'{state.name}: /boot is writable and overlayfs is NOT in use')
+        sys.exit(state.value)
+
+    if bootro_return == "1":
+        if args.boot_crit:
+            state = State.CRITICAL
+        else:
+            state = State.WARNING
+        print(f'{state.name}: /boot is writable')
+        sys.exit(state.value)
+
+    if overlayfs_return == "1":
+        if args.overlay_crit:
+            state = State.CRITICAL
+        else:
+            state = State.WARNING
+        print(f'{state.name}: overlayfs is NOT in use')
+        sys.exit(state.value)
+
+    state = State.OK
+    print(f'{state.name}: /boot is read only and overlayfs is active')
+    sys.exit(state.value)
+
+if __name__ == "__main__":
+    main()
